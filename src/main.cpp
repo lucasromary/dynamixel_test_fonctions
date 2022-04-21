@@ -179,6 +179,82 @@ void go_to_positions_multiple_motors(int *tab)
   DEBUG_SERIAL.println("=======================================================");
 }
 
+void go_to_positions_multiple_motors_test(int *tab)
+{
+  uint8_t i, recv_cnt;
+
+  // Insert a new Goal Position to the SyncWrite Packet
+  for (int i = 0; i < DXL_ID_CNT; i++)
+  {
+    sw_data[i].goal_position = tab[i];
+  }
+  sw_infos.is_info_changed = true;
+
+  /**
+   * Sync Write, changement de la valeur de goal_position en fonction du tableau en entrée
+   */
+  // Build a SyncWrite Packet and transmit to DYNAMIXEL
+  if (dxl.syncWrite(&sw_infos) == true)
+  {
+    for (i = 0; i < sw_infos.xel_count; i++)
+    {
+      DEBUG_SERIAL.print("  ID: ");
+      DEBUG_SERIAL.print(sw_infos.p_xels[i].id);
+      DEBUG_SERIAL.print(" Goal Position: ");
+      DEBUG_SERIAL.println(sw_data[i].goal_position);
+      goal_position_tab[i] = sw_data[i].goal_position;
+    }
+  }
+  else
+  {
+    DEBUG_SERIAL.print("[SyncWrite] Fail, Lib error code: ");
+    DEBUG_SERIAL.print(dxl.getLastLibErrCode());
+  }
+
+  DEBUG_SERIAL.println();
+
+  previous_timer = millis();
+
+  /**
+   * Sync read, On releve l'information de la position. Lorsque l'objectif est atteint (goal-present < 10) pour chacun des moteurs on peut passer à un prochain mouvement
+   */
+
+  while ((dxl.readControlTableItem(MOVING, DXL_ID_LIST[0]) && dxl.readControlTableItem(MOVING, DXL_ID_LIST[1]) && dxl.readControlTableItem(MOVING, DXL_ID_LIST[2]) && dxl.readControlTableItem(MOVING, DXL_ID_LIST[3]) && dxl.readControlTableItem(MOVING, DXL_ID_LIST[4]) && dxl.readControlTableItem(MOVING, DXL_ID_LIST[5]) && dxl.readControlTableItem(MOVING, DXL_ID_LIST[6]) && dxl.readControlTableItem(MOVING, DXL_ID_LIST[7]) && dxl.readControlTableItem(MOVING, DXL_ID_LIST[8]) && dxl.readControlTableItem(MOVING, DXL_ID_LIST[9]) && dxl.readControlTableItem(MOVING, DXL_ID_LIST[10]) && dxl.readControlTableItem(MOVING, DXL_ID_LIST[11]))|| millis() - previous_timer < 400)
+  {
+    recv_cnt = dxl.syncRead(&sr_infos);
+    if (recv_cnt > 0)
+    {
+      for (i = 0; i < recv_cnt; i++)
+      {
+        present_position_tab[i] = sr_data[i].present_position;
+        /*
+        DEBUG_SERIAL.print("  ID: ");
+        DEBUG_SERIAL.print(sr_infos.p_xels[i].id);
+        DEBUG_SERIAL.print(" Present Position: ");
+        DEBUG_SERIAL.print(present_position);
+        DEBUG_SERIAL.print(" Goal Position: ");
+        DEBUG_SERIAL.println(goal_position);
+        */
+      }
+    }
+  }
+
+  DEBUG_SERIAL.print(" Goal achieved timer: ");
+  DEBUG_SERIAL.println(millis() - previous_timer);
+
+  for (i = 0; i < sw_infos.xel_count; i++)
+  {
+    DEBUG_SERIAL.print("  ID: ");
+    DEBUG_SERIAL.print(sw_infos.p_xels[i].id);
+    DEBUG_SERIAL.print(" final Position: ");
+    DEBUG_SERIAL.print(sr_data[i].present_position);
+    DEBUG_SERIAL.print(" error Position: ");
+    DEBUG_SERIAL.println(abs(sr_data[i].present_position - sw_data[i].goal_position));
+  }
+
+  DEBUG_SERIAL.println("=======================================================");
+}
+
 void go_to_position(int position, int ID_moteur)
 {
   uint8_t i, recv_cnt;
@@ -219,6 +295,7 @@ void go_to_position(int position, int ID_moteur)
     recv_cnt = dxl.syncRead(&sr_infos);
     if (recv_cnt > 0)
     {
+      DEBUG_SERIAL.print(dxl.readControlTableItem(MOVING, DXL_ID_LIST[ID_moteur])); // DEFAULT 10
       DEBUG_SERIAL.print("  ID: ");
       DEBUG_SERIAL.print(sr_infos.p_xels[ID_moteur].id);
       DEBUG_SERIAL.print(" Present Position: ");
@@ -227,7 +304,7 @@ void go_to_position(int position, int ID_moteur)
       DEBUG_SERIAL.println(goal_position);
       present_position = sr_data[ID_moteur].present_position;
 
-      if (abs(goal_position - present_position) < 40)
+      if (abs(goal_position - present_position) < 20)
       {
         DEBUG_SERIAL.print(" Goal achieved with error: ");
         DEBUG_SERIAL.print(abs(goal_position - present_position));
@@ -243,30 +320,90 @@ void go_to_position(int position, int ID_moteur)
   DEBUG_SERIAL.println("=======================================================");
 }
 
+void go_to_position_test(int position, int ID_moteur)
+{
+  uint8_t recv_cnt;
+  // ID_moteur--;
+  // Insert a new Goal Position to the SyncWrite Packet
+  sw_data[ID_moteur].goal_position = position;
+  sw_infos.is_info_changed = true;
+
+  /**
+   * Sync Write, changement de la valeur de goal_position en fonction du tableau en entrée
+   */
+  // Build a SyncWrite Packet and transmit to DYNAMIXEL
+  if (dxl.syncWrite(&sw_infos) == true)
+  { /*
+     DEBUG_SERIAL.print("  ID: ");
+     DEBUG_SERIAL.print(sw_infos.p_xels[ID_moteur].id);
+     DEBUG_SERIAL.print(" Goal Position: ");
+     DEBUG_SERIAL.println(sw_data[ID_moteur].goal_position);
+     */
+    goal_position = sw_data[ID_moteur].goal_position;
+  }
+  else
+  {
+    // DEBUG_SERIAL.print("[SyncWrite] Fail, Lib error code: ");
+    // DEBUG_SERIAL.print(dxl.getLastLibErrCode());
+  }
+  // DEBUG_SERIAL.println();
+
+  previous_timer = millis();
+  /**
+   * Sync read, On releve l'information de la position. Lorsque l'objectif est atteint (goal-present < 10) pour chacun des moteurs on peut passer à un prochain mouvement
+   */
+  // DEBUG_SERIAL.print("Moving : ");
+  // DEBUG_SERIAL.print(dxl.readControlTableItem(MOVING_STATUS, DXL_ID_LIST[ID_moteur]));
+
+  while (dxl.readControlTableItem(MOVING, DXL_ID_LIST[ID_moteur]) || millis() - previous_timer < 400)
+  {
+    recv_cnt = dxl.syncRead(&sr_infos);
+    if (recv_cnt > 0)
+    { /*
+       DEBUG_SERIAL.print(dxl.readControlTableItem(MOVING_STATUS, DXL_ID_LIST[ID_moteur]));
+       DEBUG_SERIAL.print("  ID: ");
+       DEBUG_SERIAL.print(sr_infos.p_xels[ID_moteur].id);
+       DEBUG_SERIAL.print(" Present Position: ");
+       DEBUG_SERIAL.print(present_position);
+       DEBUG_SERIAL.print(" Goal Position: ");
+       DEBUG_SERIAL.println(goal_position);
+       */
+      DEBUG_SERIAL.println(present_position);
+      present_position = sr_data[ID_moteur].present_position;
+    }
+  }
+  /*
+  DEBUG_SERIAL.print(" Goal achieved timer: ");
+  DEBUG_SERIAL.println(millis() - previous_timer);
+
+  DEBUG_SERIAL.println("=======================================================");
+*/
+}
+
 void set_velocity_accel(int vel, int accel, int ID_moteur)
 {
-  ID_moteur--;
   dxl.writeControlTableItem(PROFILE_ACCELERATION, DXL_ID_LIST[ID_moteur], vel);
   dxl.writeControlTableItem(PROFILE_VELOCITY, DXL_ID_LIST[ID_moteur], accel);
 }
 
-void coucou()
+void coucou(int vel, int accel)
 {
   for (int i = 0; i < 12; i++)
   {
-    set_velocity_accel(200, 0, i);
+    set_velocity_accel(vel, accel, i);
   }
-
-  //delay(5000);
-  go_to_positions_multiple_motors(goal_position_sequence_coucou1);
-  go_to_positions_multiple_motors(goal_position_sequence_coucou2);
-  go_to_positions_multiple_motors(goal_position_sequence_coucou3);
-  go_to_positions_multiple_motors(goal_position_sequence_coucou2);
-  go_to_positions_multiple_motors(goal_position_sequence_coucou3);
-  go_to_positions_multiple_motors(goal_position_sequence_coucou2);
-  go_to_positions_multiple_motors(goal_position_sequence_coucou3);
+  DEBUG_SERIAL.println(dxl.readControlTableItem(PROFILE_VELOCITY, DXL_ID_LIST[0]));     // DEFAULT 10
+  DEBUG_SERIAL.println(dxl.readControlTableItem(PROFILE_ACCELERATION, DXL_ID_LIST[0])); // 0
+  // delay(5000);
+  go_to_positions_multiple_motors_test(goal_position_sequence_coucou1);
+  go_to_positions_multiple_motors_test(goal_position_sequence_coucou2);
+  go_to_positions_multiple_motors_test(goal_position_sequence_coucou3);
+  go_to_positions_multiple_motors_test(goal_position_sequence_coucou2);
+  go_to_positions_multiple_motors_test(goal_position_sequence_coucou3);
+  go_to_positions_multiple_motors_test(goal_position_sequence_coucou2);
+  go_to_positions_multiple_motors_test(goal_position_sequence_coucou3);
   // go_to_positions_multiple_motors(goal_position_sequence_coucou1);
-  //delay(2000);
+  // delay(2000);
 }
 
 void setup()
@@ -318,17 +455,36 @@ void setup()
     sw_infos.xel_count++;
   }
   sw_infos.is_info_changed = true;
- 
+
   for (int i = 0; i < 12; i++)
   {
     go_to_position(goal_position_sequence_repos[i], i);
   }
 
-  coucou();
+  coucou(40, 300);
+  coucou(0, 300);
+  coucou(20, 300);
+  coucou(40, 200);
 
   go_to_positions_multiple_motors(goal_position_sequence_repos);
 
+  /* TEST PROFILE VEL & ACC
 
+   set_velocity_accel(0, 300, 0);
+
+   //DEBUG_SERIAL.println(dxl.readControlTableItem(PROFILE_VELOCITY, DXL_ID_LIST[0])); //DEFAULT 10
+   //DEBUG_SERIAL.println(dxl.readControlTableItem(PROFILE_ACCELERATION, DXL_ID_LIST[0])); // 0
+
+   go_to_position_test(4096,0);
+   delay(1000);
+   go_to_position_test(0,0);
+   delay(1000);
+
+   set_velocity_accel(40, 300, 0);
+   go_to_position_test(4096,0);
+   delay(1000);
+   go_to_position_test(0,0);
+   */
 }
 
 void loop()
